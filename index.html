@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f1a" />
+  <title>Boom! — Jogo de Quiz</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ================= INÍCIO ================= -->
+  <section id="tela-inicio" class="tela ativa">
+    <div class="logo">
+      <div class="bomba-emoji">💣</div>
+      <h1>BOOM!</h1>
+      <p class="subtitulo">Desarme as bombas respondendo certo</p>
+    </div>
+
+    <div class="botoes-modo">
+      <button class="btn btn-primario" data-modo="solo">🎯 Jogar Solo</button>
+      <button class="btn btn-secundario" data-modo="equipes">👥 Jogar em Equipes</button>
+      <button class="btn btn-fantasma" data-tela="tela-editor">✏️ Editar Perguntas</button>
+      <button class="btn btn-fantasma" data-tela="tela-config-global">⚙️ Configurações</button>
+    </div>
+
+    <div class="rodape-info">
+      <span id="info-total-perguntas">— perguntas carregadas</span>
+    </div>
+  </section>
+
+  <!-- ================= CONFIG SOLO ================= -->
+  <section id="tela-config-solo" class="tela">
+    <h2>🎯 Modo Solo</h2>
+    <label class="campo">
+      <span>Seu nome</span>
+      <input type="text" id="input-nome-solo" placeholder="Ex: Tynara" maxlength="20" />
+    </label>
+    <label class="campo">
+      <span>Quantidade de bombas</span>
+      <select id="select-bombas-solo">
+        <option value="10">10</option>
+        <option value="15" selected>15</option>
+        <option value="20">20</option>
+        <option value="30">30</option>
+        <option value="9999">Todas disponíveis</option>
+      </select>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="check-morte-solo" />
+      <span class="switch-ui"></span>
+      <span class="switch-txt">
+        <strong>💀 Morte Súbita</strong>
+        <small>Um único erro encerra o jogo</small>
+      </span>
+    </label>
+    <div class="acoes">
+      <button class="btn btn-secundario" data-voltar>Voltar</button>
+      <button class="btn btn-primario" id="btn-iniciar-solo">Começar 💣</button>
+    </div>
+  </section>
+
+  <!-- ================= CONFIG EQUIPES ================= -->
+  <section id="tela-config-equipes" class="tela">
+    <h2>👥 Modo Equipes</h2>
+    <label class="campo">
+      <span>Número de equipes</span>
+      <select id="select-num-equipes">
+        <option value="2" selected>2 equipes</option>
+        <option value="3">3 equipes</option>
+        <option value="4">4 equipes</option>
+      </select>
+    </label>
+    <div id="lista-nomes-equipes" class="lista-equipes"></div>
+    <label class="campo">
+      <span>Bombas por equipe</span>
+      <select id="select-bombas-equipe">
+        <option value="3">3 bombas</option>
+        <option value="5" selected>5 bombas</option>
+        <option value="7">7 bombas</option>
+      </select>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="check-morte-equipes" />
+      <span class="switch-ui"></span>
+      <span class="switch-txt">
+        <strong>💀 Morte Súbita</strong>
+        <small>Equipe que errar é eliminada. Última de pé vence.</small>
+      </span>
+    </label>
+    <div class="acoes">
+      <button class="btn btn-secundario" data-voltar>Voltar</button>
+      <button class="btn btn-primario" id="btn-iniciar-equipes">Começar 💣</button>
+    </div>
+  </section>
+
+  <!-- ================= JOGO ================= -->
+  <section id="tela-jogo" class="tela">
+    <header class="hud">
+      <div class="hud-item">
+        <span class="hud-label">Bomba</span>
+        <span id="hud-bomba" class="hud-valor">1 / 15</span>
+      </div>
+      <div class="hud-item hud-equipe">
+        <span class="hud-label">Vez de</span>
+        <span id="hud-equipe" class="hud-valor">Jogador</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label">Pontos</span>
+        <span id="hud-pontos" class="hud-valor">0</span>
+      </div>
+    </header>
+
+    <div id="placar" class="placar escondido"></div>
+
+    <div class="area-bomba">
+      <div id="bomba" class="bomba">
+        <div class="bomba-emoji-grande">💣</div>
+      </div>
+      <div class="timer"><div id="timer-barra" class="timer-barra"></div></div>
+      <div id="timer-texto" class="timer-texto">30s</div>
+    </div>
+
+    <div class="pergunta-box">
+      <p id="pergunta" class="pergunta">Carregando…</p>
+      <div id="alternativas" class="alternativas"></div>
+    </div>
+  </section>
+
+  <!-- ================= FIM ================= -->
+  <section id="tela-fim" class="tela">
+    <h2 id="fim-titulo">Fim de jogo!</h2>
+    <div id="fim-conteudo" class="fim-conteudo"></div>
+    <div class="acoes">
+      <button class="btn btn-secundario" id="btn-menu">Menu inicial</button>
+      <button class="btn btn-primario" id="btn-reiniciar">Jogar de novo</button>
+    </div>
+  </section>
+
+  <!-- ================= EDITOR DE PERGUNTAS ================= -->
+  <section id="tela-editor" class="tela">
+    <h2>✏️ Editor de Perguntas</h2>
+
+    <div class="editor-toolbar">
+      <button class="btn btn-primario btn-sm" id="btn-nova-pergunta">+ Nova</button>
+      <button class="btn btn-fantasma btn-sm" id="btn-exportar">⬇ Exportar</button>
+      <button class="btn btn-fantasma btn-sm" id="btn-importar">⬆ Importar</button>
+      <button class="btn btn-perigo btn-sm" id="btn-restaurar">↺ Padrão</button>
+      <input type="file" id="input-importar" accept=".json" hidden />
+    </div>
+
+    <p class="editor-info" id="editor-info">0 perguntas salvas</p>
+
+    <div id="lista-perguntas" class="lista-perguntas"></div>
+
+    <div class="acoes">
+      <button class="btn btn-secundario" data-voltar>Voltar ao menu</button>
+    </div>
+  </section>
+
+  <!-- ================= CONFIGURAÇÕES GLOBAIS ================= -->
+  <section id="tela-config-global" class="tela">
+    <h2>⚙️ Configurações</h2>
+
+    <label class="campo-slider">
+      <div class="campo-slider-topo">
+        <span>⏱️ Tempo por bomba</span>
+        <strong><span id="lbl-tempo">30</span>s</strong>
+      </div>
+      <input type="range" id="sl-tempo" min="5" max="90" step="5" value="30" />
+      <small>De 5 a 90 segundos</small>
+    </label>
+
+    <label class="campo-slider">
+      <div class="campo-slider-topo">
+        <span>🏆 Pontos por acerto</span>
+        <strong><span id="lbl-pontos">10</span></strong>
+      </div>
+      <input type="range" id="sl-pontos" min="1" max="50" step="1" value="10" />
+    </label>
+
+    <label class="campo-slider">
+      <div class="campo-slider-topo">
+        <span>⚡ Bônus máximo por tempo</span>
+        <strong><span id="lbl-bonus">5</span></strong>
+      </div>
+      <input type="range" id="sl-bonus" min="0" max="20" step="1" value="5" />
+      <small>Pontos extras por responder rápido</small>
+    </label>
+
+    <hr class="divisor" />
+
+    <label class="campo-slider">
+      <div class="campo-slider-topo">
+        <span>🎵 Volume da música</span>
+        <strong><span id="lbl-vol-musica">9</span>%</strong>
+      </div>
+      <input type="range" id="sl-vol-musica" min="0" max="30" step="1" value="9" />
+    </label>
+
+    <label class="campo-slider">
+      <div class="campo-slider-topo">
+        <span>💥 Volume dos efeitos</span>
+        <strong><span id="lbl-vol-sfx">32</span>%</strong>
+      </div>
+      <input type="range" id="sl-vol-sfx" min="0" max="100" step="1" value="32" />
+    </label>
+
+    <div class="acoes">
+      <button class="btn btn-perigo" id="btn-config-padrao">↺ Padrão</button>
+      <button class="btn btn-primario" data-voltar>Salvar e voltar</button>
+    </div>
+  </section>
+
+  <!-- ================= MODAL EDITOR ================= -->
+  <div id="modal-editor" class="modal escondido">
+    <div class="modal-box">
+      <h3 id="modal-titulo">Nova pergunta</h3>
+      <label class="campo">
+        <span>Pergunta</span>
+        <textarea id="edit-p" rows="3" maxlength="200" placeholder="Digite a pergunta..."></textarea>
+      </label>
+      <div class="alternativas-edit">
+        <label class="alt-edit">
+          <input type="radio" name="correta" value="0" checked />
+          <input type="text" class="edit-alt" data-idx="0" maxlength="80" placeholder="Alternativa A" />
+        </label>
+        <label class="alt-edit">
+          <input type="radio" name="correta" value="1" />
+          <input type="text" class="edit-alt" data-idx="1" maxlength="80" placeholder="Alternativa B" />
+        </label>
+        <label class="alt-edit">
+          <input type="radio" name="correta" value="2" />
+          <input type="text" class="edit-alt" data-idx="2" maxlength="80" placeholder="Alternativa C" />
+        </label>
+        <label class="alt-edit">
+          <input type="radio" name="correta" value="3" />
+          <input type="text" class="edit-alt" data-idx="3" maxlength="80" placeholder="Alternativa D" />
+        </label>
+      </div>
+      <p class="dica-edit">Marque o círculo ao lado da alternativa <strong>correta</strong>.</p>
+      <div class="acoes">
+        <button class="btn btn-secundario" id="btn-cancelar-edit">Cancelar</button>
+        <button class="btn btn-primario" id="btn-salvar-pergunta">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= UI GLOBAL ================= -->
+  <button id="btn-audio" class="btn-audio" title="Música">🎵</button>
+  <div id="toast" class="toast"></div>
+
+  <script src="questions.js"></script>
+  <script src="audio.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

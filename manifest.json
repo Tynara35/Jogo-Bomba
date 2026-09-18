@@ -1,0 +1,13 @@
+{
+  "name": "Boom! — Jogo de Quiz",
+  "short_name": "Boom!",
+  "description": "Desarme bombas respondendo perguntas. Solo, equipes e morte súbita.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0f1a",
+  "theme_color": "#0f0f1a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
