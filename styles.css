@@ -678,3 +678,11 @@ h3 { font-size: 20px; margin-bottom: 14px; }
   .botoes-modo { flex-direction: row; flex-wrap: wrap; }
   .botoes-modo .btn { flex: 1 1 calc(50% - 6px); }
 }
+/* ---------- Texto de ajuda dos campos ---------- */
+.ajuda-campo {
+  display: block;
+  font-size: 12px;
+  color: var(--texto-suave);
+  margin-top: 4px;
+  line-height: 1.4;
+}
