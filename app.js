@@ -7,6 +7,7 @@ const CONFIG_PADRAO = {
   TEMPO_POR_BOMBA: 30,
   PONTOS_ACERTO: 10,
   BONUS_MAX: 5,
+  ALTERNAR_TURNOS: true,
 };
 
 const CONFIG = { ...CONFIG_PADRAO };
@@ -20,6 +21,9 @@ function carregarConfig() {
 function salvarConfig() {
   localStorage.setItem('boom_config_v1', JSON.stringify(CONFIG));
 }
+
+// ---------- CORES PADRÃO DAS EQUIPES ----------
+const CORES_PADRAO = ['#ff6b35', '#3b82f6', '#22c55e', '#a855f7'];
 
 // ---------- CHAVES DE STORAGE ----------
 const CHAVES = { PERGUNTAS: 'boom_perguntas_v1' };
@@ -51,6 +55,12 @@ function toast(msg, tipo = '') {
   t._id = setTimeout(() => t.classList.remove('mostrar'), 1800);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
 // ======================================================
 //  PERGUNTAS — carregar / salvar
 // ======================================================
@@ -66,11 +76,9 @@ function carregarPerguntas() {
   salvarPerguntas(padrao);
   return [...padrao];
 }
-
 function salvarPerguntas(arr) {
   localStorage.setItem(CHAVES.PERGUNTAS, JSON.stringify(arr));
 }
-
 function atualizarInfoPerguntas() {
   const total = carregarPerguntas().length;
   $('#info-total-perguntas').textContent =
@@ -83,6 +91,7 @@ function atualizarInfoPerguntas() {
 const estado = {
   modo: null,
   mortesubita: false,
+  alternar: true,
   equipes: [],
   equipeAtual: 0,
   fila: [],
@@ -92,6 +101,8 @@ const estado = {
   timerId: null,
   respondido: false,
   ultimoTick: -1,
+  pausado: false,
+  configuracoesIniciais: null, // para "reiniciar"
 };
 
 // ======================================================
@@ -123,22 +134,34 @@ document.addEventListener('click', (e) => {
 });
 
 // ======================================================
-//  FORMULÁRIO EQUIPES
+//  FORMULÁRIO EQUIPES (nome + cor)
 // ======================================================
 function montarFormularioEquipes() {
   const num = parseInt($('#select-num-equipes').value, 10);
   const container = $('#lista-nomes-equipes');
-  const atuais = [...container.querySelectorAll('input')].map(i => i.value);
-  const nomesPadrao = ['Vermelha', 'Azul', 'Verde', 'Amarela'];
+
+  // Salva estado atual
+  const atuais = [...container.querySelectorAll('.equipe-linha')].map(l => ({
+    nome: l.querySelector('.input-nome-equipe').value,
+    cor: l.querySelector('.input-cor-equipe').value,
+  }));
+
+  const nomesPadrao = ['Vermelha', 'Azul', 'Verde', 'Roxa'];
   container.innerHTML = '';
+
   for (let i = 0; i < num; i++) {
-    const label = document.createElement('label');
-    label.className = 'campo';
-    label.innerHTML = `
-      <span>Nome da equipe ${i + 1}</span>
-      <input type="text" maxlength="20" value="${atuais[i] || 'Equipe ' + nomesPadrao[i]}" />
+    const dados = atuais[i] || {
+      nome: `Equipe ${nomesPadrao[i] || (i + 1)}`,
+      cor: CORES_PADRAO[i] || '#888888',
+    };
+    const linha = document.createElement('div');
+    linha.className = 'equipe-linha';
+    linha.innerHTML = `
+      <span class="numero">${i + 1}</span>
+      <input type="text" class="input-nome-equipe" maxlength="20" value="${escapeHtml(dados.nome)}" />
+      <input type="color" class="input-cor-equipe" value="${dados.cor}" />
     `;
-    container.appendChild(label);
+    container.appendChild(linha);
   }
 }
 $('#select-num-equipes').addEventListener('change', montarFormularioEquipes);
@@ -150,22 +173,39 @@ $('#btn-iniciar-solo').addEventListener('click', () => {
   const nome = $('#input-nome-solo').value.trim() || 'Jogador';
   const qtd = parseInt($('#select-bombas-solo').value, 10);
   const mortesubita = $('#check-morte-solo').checked;
-  iniciarJogo('solo', [{ nome, pontos: 0, eliminada: false }], qtd, mortesubita);
+  iniciarJogo(
+    'solo',
+    [{ nome, pontos: 0, eliminada: false, cor: CORES_PADRAO[0] }],
+    qtd,
+    mortesubita,
+    false
+  );
 });
 
 $('#btn-iniciar-equipes').addEventListener('click', () => {
-  const inputs = [...$('#lista-nomes-equipes').querySelectorAll('input')];
-  const equipes = inputs.map((inp, i) => ({
-    nome: inp.value.trim() || `Equipe ${i + 1}`,
+  const linhas = [...$('#lista-nomes-equipes').querySelectorAll('.equipe-linha')];
+  const equipes = linhas.map((l, i) => ({
+    nome: l.querySelector('.input-nome-equipe').value.trim() || `Equipe ${i + 1}`,
+    cor: l.querySelector('.input-cor-equipe').value,
     pontos: 0,
     eliminada: false,
   }));
+
+  // Verifica nomes duplicados
+  const nomes = equipes.map(e => e.nome.toLowerCase());
+  if (new Set(nomes).size !== nomes.length) {
+    toast('Cada equipe precisa de um nome único!', 'erro');
+    return;
+  }
+
   const porEquipe = parseInt($('#select-bombas-equipe').value, 10);
   const mortesubita = $('#check-morte-equipes').checked;
-  iniciarJogo('equipes', equipes, porEquipe * equipes.length, mortesubita);
+  const alternar = $('#check-alternar').checked;
+
+  iniciarJogo('equipes', equipes, porEquipe * equipes.length, mortesubita, alternar);
 });
 
-function iniciarJogo(modo, equipes, totalBombas, mortesubita) {
+function iniciarJogo(modo, equipes, totalBombas, mortesubita, alternar) {
   const banco = carregarPerguntas();
   if (banco.length < 4) {
     toast('Adicione pelo menos 4 perguntas no editor!', 'erro');
@@ -174,23 +214,46 @@ function iniciarJogo(modo, equipes, totalBombas, mortesubita) {
 
   estado.modo = modo;
   estado.mortesubita = mortesubita;
+  estado.alternar = alternar;
   estado.equipes = equipes;
   estado.equipeAtual = 0;
   estado.bombaAtual = 0;
   estado.totalBombas = Math.min(totalBombas, banco.length);
   estado.fila = embaralhar(banco).slice(0, estado.totalBombas);
   estado.respondido = false;
+  estado.pausado = false;
+
+  // Guarda config para "reiniciar"
+  estado.configuracoesIniciais = {
+    modo,
+    equipes: equipes.map(e => ({ ...e, pontos: 0, eliminada: false })),
+    totalBombas: estado.totalBombas,
+    mortesubita,
+    alternar,
+  };
 
   if (modo === 'equipes') {
     $('#placar').classList.remove('escondido');
+    $('#turno-banner').classList.remove('escondido');
     renderizarPlacar();
   } else {
     $('#placar').classList.add('escondido');
+    $('#turno-banner').classList.add('escondido');
   }
 
   mostrarTela('tela-jogo');
   Audio.resume();
+  atualizarCorEquipe();
   proximaBomba();
+}
+
+// ======================================================
+//  COR DA EQUIPE (aplica em todo o app)
+// ======================================================
+function atualizarCorEquipe() {
+  const eq = estado.equipes[estado.equipeAtual];
+  const cor = eq?.cor || CORES_PADRAO[0];
+  document.documentElement.style.setProperty('--cor-equipe', cor);
 }
 
 // ======================================================
@@ -198,8 +261,10 @@ function iniciarJogo(modo, equipes, totalBombas, mortesubita) {
 // ======================================================
 function renderizarPlacar() {
   $('#placar').innerHTML = estado.equipes.map((eq, i) => `
-    <div class="placar-item ${i === estado.equipeAtual ? 'ativo' : ''} ${eq.eliminada ? 'eliminada' : ''}">
-      ${eq.nome}<span class="pts">${eq.pontos}</span>
+    <div class="placar-item ${i === estado.equipeAtual ? 'ativo' : ''} ${eq.eliminada ? 'eliminada' : ''}"
+         style="--cor-item:${eq.cor}">
+      <span class="dot" style="background:${eq.cor}"></span>
+      ${escapeHtml(eq.nome)}<span class="pts">${eq.pontos}</span>
     </div>
   `).join('');
 }
@@ -214,13 +279,27 @@ function proximaBomba() {
   estado.ultimoTick = -1;
   const pergunta = estado.fila[estado.bombaAtual];
 
+  // HUD
   $('#hud-bomba').textContent = `${estado.bombaAtual + 1} / ${estado.totalBombas}`;
   const eqAtual = estado.equipes[estado.equipeAtual];
   $('#hud-equipe').textContent = eqAtual.nome;
   $('#hud-pontos').textContent = eqAtual.pontos;
 
+  // Banner de vez
+  if (estado.modo === 'equipes') {
+    $('#turno-nome').textContent = eqAtual.nome;
+  }
+
+  // Aplica cor
+  atualizarCorEquipe();
+  $('#hud').classList.add('tem-cor');
+  $('#bomba').classList.add('tem-cor');
+  $('#pergunta').classList.add('tem-cor');
+
+  // Pergunta
   $('#pergunta').textContent = pergunta.p;
 
+  // Alternativas embaralhadas
   const indices = embaralhar(pergunta.a.map((_, i) => i));
   const alt = $('#alternativas');
   alt.innerHTML = '';
@@ -243,6 +322,8 @@ function iniciarTimer() {
   atualizarTimer();
 
   estado.timerId = setInterval(() => {
+    if (estado.pausado) return;
+
     estado.tempoRestante -= 0.1;
     if (estado.tempoRestante <= 0) {
       estado.tempoRestante = 0;
@@ -272,7 +353,7 @@ function atualizarTimer() {
 //  RESPOSTA
 // ======================================================
 function responder(botao) {
-  if (estado.respondido) return;
+  if (estado.respondido || estado.pausado) return;
   estado.respondido = true;
   clearInterval(estado.timerId);
   $('#bomba').classList.remove('perigo');
@@ -283,6 +364,7 @@ function responder(botao) {
   let acertou = false;
 
   if (botao === null) {
+    // Timeout
     Audio.explosao();
     $('#bomba').classList.add('explodir');
     toast('💥 Tempo esgotado!', 'timeout');
@@ -290,26 +372,29 @@ function responder(botao) {
       if (b.dataset.correta === '1') b.classList.add('correta');
     });
   } else if (botao.dataset.correta === '1') {
+    // ACERTOU — bomba explode como recompensa
     acertou = true;
     const bonus = Math.round((estado.tempoRestante / CONFIG.TEMPO_POR_BOMBA) * CONFIG.BONUS_MAX);
     Audio.acerto();
+    setTimeout(() => Audio.explosao(), 150);
     botao.classList.add('correta');
+    $('#bomba').classList.add('explodir'); // 💥 explode ao acertar
     estado.equipes[estado.equipeAtual].pontos += CONFIG.PONTOS_ACERTO + bonus;
-    toast(`✅ +${CONFIG.PONTOS_ACERTO + bonus} pontos!`, 'sucesso');
+    toast(`💥 +${CONFIG.PONTOS_ACERTO + bonus} pontos!`, 'sucesso');
   } else {
-    Audio.explosao();
+    // ERROU
+    Audio.erro();
     botao.classList.add('errada');
     alternativas.forEach(b => {
       if (b.dataset.correta === '1') b.classList.add('correta');
     });
-    $('#bomba').classList.add('explodir');
     toast(estado.mortesubita ? '💀 Errou! Eliminado.' : '❌ Errou!', 'erro');
   }
 
   if (estado.modo === 'equipes') renderizarPlacar();
   $('#hud-pontos').textContent = estado.equipes[estado.equipeAtual].pontos;
 
-  setTimeout(() => avancarTurno(acertou), acertou ? 1200 : 1800);
+  setTimeout(() => avancarTurno(acertou), acertou ? 1300 : 1800);
 }
 
 // ======================================================
@@ -318,12 +403,14 @@ function responder(botao) {
 function avancarTurno(acertou) {
   estado.bombaAtual++;
 
+  // ---- Solo ----
   if (estado.modo === 'solo') {
     if (estado.mortesubita && !acertou) return finalizarJogo();
     if (estado.bombaAtual >= estado.totalBombas) return finalizarJogo();
     return proximaBomba();
   }
 
+  // ---- Equipes ----
   if (estado.mortesubita && !acertou) {
     estado.equipes[estado.equipeAtual].eliminada = true;
   }
@@ -332,14 +419,34 @@ function avancarTurno(acertou) {
   if (estado.mortesubita && vivas.length <= 1) return finalizarJogo();
   if (estado.bombaAtual >= estado.totalBombas) return finalizarJogo();
 
-  let prox = (estado.equipeAtual + 1) % estado.equipes.length;
+  // Decide se troca de equipe
+  let trocar = true;
+  if (!estado.alternar) {
+    // Só troca se errou
+    trocar = !acertou;
+  }
+
+  if (trocar) {
+    estado.equipeAtual = proximaEquipeViva(estado.equipeAtual);
+  } else {
+    // Mesma equipe continua — mas se ela foi eliminada (não é possível com morte súbita
+    // porque errar = eliminada = troca obrigatória), garante que continua viva
+    if (estado.equipes[estado.equipeAtual].eliminada) {
+      estado.equipeAtual = proximaEquipeViva(estado.equipeAtual);
+    }
+  }
+
+  proximaBomba();
+}
+
+function proximaEquipeViva(atual) {
+  let prox = (atual + 1) % estado.equipes.length;
   let tentativas = 0;
   while (estado.equipes[prox].eliminada && tentativas < estado.equipes.length) {
     prox = (prox + 1) % estado.equipes.length;
     tentativas++;
   }
-  estado.equipeAtual = prox;
-  proximaBomba();
+  return prox;
 }
 
 // ======================================================
@@ -347,14 +454,19 @@ function avancarTurno(acertou) {
 // ======================================================
 function finalizarJogo() {
   clearInterval(estado.timerId);
+  estado.pausado = false;
   Audio.vitoria();
+
+  $('#hud').classList.remove('tem-cor');
+  $('#bomba').classList.remove('tem-cor');
+  $('#pergunta').classList.remove('tem-cor');
 
   if (estado.modo === 'solo') {
     const p = estado.equipes[0].pontos;
     const acertos = Math.min(Math.floor(p / CONFIG.PONTOS_ACERTO), estado.totalBombas);
     $('#fim-titulo').textContent = estado.mortesubita ? '💀 Fim da linha!' : '🏁 Fim de jogo!';
     $('#fim-conteudo').innerHTML = `
-      <p>${estado.equipes[0].nome}, você fez:</p>
+      <p>${escapeHtml(estado.equipes[0].nome)}, você fez:</p>
       <div class="grande">${p} pts</div>
       <p style="margin-top:10px;color:var(--texto-suave)">
         ${estado.mortesubita
@@ -394,8 +506,10 @@ function finalizarJogo() {
     $('#fim-conteudo').innerHTML = `
       <div class="ranking">
         ${ordenado.map(eq => `
-          <div class="rank-item ${destacadas.includes(eq.nome) ? 'vencedor' : ''} ${eq.eliminada ? 'eliminada' : ''}">
-            <span>${eq.eliminada ? '💀 ' : ''}${eq.nome}</span>
+          <div class="rank-item ${destacadas.includes(eq.nome) ? 'vencedor' : ''} ${eq.eliminada ? 'eliminada' : ''}"
+               style="--cor-item:${eq.cor}">
+            <span class="dot" style="background:${eq.cor}"></span>
+            <span class="nome">${eq.eliminada ? '💀 ' : ''}${escapeHtml(eq.nome)}</span>
             <strong>${eq.pontos} pts</strong>
           </div>
         `).join('')}
@@ -407,6 +521,67 @@ function finalizarJogo() {
 }
 
 // ======================================================
+//  PAUSAR / RETOMAR
+// ======================================================
+function pausarJogo() {
+  if (estado.pausado || estado.respondido) return;
+  estado.pausado = true;
+
+  $('#pausa-tempo').textContent = Math.ceil(estado.tempoRestante) + 's';
+  $('#pausa-equipe').textContent = estado.equipes[estado.equipeAtual]?.nome || '—';
+  $('#overlay-pausa').classList.remove('escondido');
+}
+
+function continuarJogo() {
+  if (!estado.pausado) return;
+  estado.pausado = false;
+  $('#overlay-pausa').classList.add('escondido');
+}
+
+$('#btn-pausar').addEventListener('click', pausarJogo);
+$('#btn-continuar').addEventListener('click', continuarJogo);
+
+$('#btn-menu-da-pausa').addEventListener('click', () => {
+  estado.pausado = false;
+  clearInterval(estado.timerId);
+  $('#overlay-pausa').classList.add('escondido');
+  $('#hud').classList.remove('tem-cor');
+  $('#bomba').classList.remove('tem-cor');
+  $('#pergunta').classList.remove('tem-cor');
+  atualizarInfoPerguntas();
+  mostrarTela('tela-inicio');
+});
+
+// ======================================================
+//  REINICIAR DURANTE O JOGO
+// ======================================================
+function reiniciarJogoAtual() {
+  if (!estado.configuracoesIniciais) return;
+  const cfg = estado.configuracoesIniciais;
+  clearInterval(estado.timerId);
+  estado.pausado = false;
+  $('#overlay-pausa').classList.add('escondido');
+  iniciarJogo(
+    cfg.modo,
+    cfg.equipes.map(e => ({ ...e, pontos: 0, eliminada: false })),
+    cfg.totalBombas,
+    cfg.mortesubita,
+    cfg.alternar
+  );
+  toast('🔄 Jogo reiniciado!', 'info');
+}
+
+$('#btn-reiniciar-jogo').addEventListener('click', () => {
+  if (!confirm('Reiniciar o jogo atual? Toda a pontuação será perdida.')) return;
+  reiniciarJogoAtual();
+});
+
+$('#btn-reiniciar-da-pausa').addEventListener('click', () => {
+  if (!confirm('Reiniciar o jogo atual? Toda a pontuação será perdida.')) return;
+  reiniciarJogoAtual();
+});
+
+// ======================================================
 //  BOTÕES DE FIM
 // ======================================================
 $('#btn-menu').addEventListener('click', () => {
@@ -414,10 +589,7 @@ $('#btn-menu').addEventListener('click', () => {
   mostrarTela('tela-inicio');
 });
 
-$('#btn-reiniciar').addEventListener('click', () => {
-  const equipes = estado.equipes.map(e => ({ ...e, pontos: 0, eliminada: false }));
-  iniciarJogo(estado.modo, equipes, estado.totalBombas, estado.mortesubita);
-});
+$('#btn-reiniciar').addEventListener('click', reiniciarJogoAtual);
 
 // ======================================================
 //  EDITOR DE PERGUNTAS
@@ -460,12 +632,6 @@ function renderizarListaPerguntas() {
   lista.querySelectorAll('[data-excluir]').forEach(b =>
     b.addEventListener('click', () => excluirPergunta(parseInt(b.dataset.excluir, 10)))
   );
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[c]));
 }
 
 function abrirModalEdicao(idx = -1) {
@@ -582,6 +748,144 @@ $('#btn-restaurar').addEventListener('click', () => {
 });
 
 // ======================================================
+//  IMPORTAR DO WORD
+// ======================================================
+function parseTextoPerguntas(texto) {
+  if (!texto || !texto.trim()) return [];
+  const temTabs = texto.split('\n').some(l => l.includes('\t'));
+  return temTabs ? parseTabSeparado(texto) : parseBloco(texto);
+}
+
+function parseTabSeparado(texto) {
+  const perguntas = [];
+  const linhas = texto.split(/\r?\n/).filter(l => l.trim());
+  for (const linha of linhas) {
+    const cols = linha.split('\t').map(c => c.trim());
+    if (cols.length < 6) continue;
+    const [p, a, b, c, d, resp] = cols;
+    if (!p || p.toLowerCase() === 'pergunta') continue;
+    if (!a || !b || !c || !d) continue;
+    const letra = (resp || '').trim().toUpperCase().charAt(0);
+    const idx = { A: 0, B: 1, C: 2, D: 3 }[letra];
+    if (idx === undefined) continue;
+    perguntas.push({ p, a: [a, b, c, d], c: idx });
+  }
+  return perguntas;
+}
+
+function parseBloco(texto) {
+  const perguntas = [];
+  const blocos = texto
+    .replace(/\r/g, '')
+    .split(/\n\s*\n|^[-*_]{3,}\s*$/m)
+    .map(b => b.trim())
+    .filter(Boolean);
+
+  for (const bloco of blocos) {
+    const linhas = bloco.split('\n').map(l => l.trim()).filter(Boolean);
+    if (linhas.length < 5) continue;
+
+    let pergunta = linhas[0]
+      .replace(/^\d+\s*[\.\)\-]\s*/, '')
+      .replace(/^[-•*]\s*/, '')
+      .trim();
+
+    const alternativas = [];
+    let corretaIdx = -1;
+
+    for (let i = 1; i < linhas.length; i++) {
+      const linha = linhas[i];
+
+      const mResp = linha.match(/^(resposta|correta|gabarito|answer)\s*[:\-]?\s*([a-d])\b/i);
+      if (mResp) {
+        corretaIdx = mResp[2].toUpperCase().charCodeAt(0) - 65;
+        continue;
+      }
+
+      const mAlt = linha.match(/^([a-dA-D])\s*[\)\.\-:]\s*(.+)$/);
+      if (mAlt) {
+        alternativas.push(mAlt[2].trim());
+        continue;
+      }
+
+      const mStar = linha.match(/^[*•]\s*(.+)$/);
+      if (mStar) {
+        alternativas.push(mStar[1].trim());
+        continue;
+      }
+
+      if (i === linhas.length - 1 && /^[a-d]$/i.test(linha)) {
+        corretaIdx = linha.toUpperCase().charCodeAt(0) - 65;
+      }
+    }
+
+    if (alternativas.length === 0 && linhas.length >= 5) {
+      for (let i = 1; i <= 4; i++) alternativas.push(linhas[i]);
+      const ultima = linhas[linhas.length - 1];
+      if (/^[a-d]$/i.test(ultima)) corretaIdx = ultima.toUpperCase().charCodeAt(0) - 65;
+    }
+
+    if (alternativas.length === 4 && corretaIdx >= 0 && corretaIdx < 4) {
+      perguntas.push({ p: pergunta, a: alternativas, c: corretaIdx });
+    }
+  }
+  return perguntas;
+}
+
+function abrirModalImportTexto() {
+  $('#import-texto').value = '';
+  $('#import-preview').classList.add('escondido');
+  $('#modal-import-texto').classList.remove('escondido');
+  setTimeout(() => $('#import-texto').focus(), 100);
+}
+
+function fecharModalImportTexto() {
+  $('#modal-import-texto').classList.add('escondido');
+}
+
+$('#btn-colar-word').addEventListener('click', abrirModalImportTexto);
+$('#btn-cancelar-import-texto').addEventListener('click', fecharModalImportTexto);
+$('#modal-import-texto').addEventListener('click', (e) => {
+  if (e.target.id === 'modal-import-texto') fecharModalImportTexto();
+});
+
+$('#import-texto').addEventListener('input', (e) => {
+  const perguntas = parseTextoPerguntas(e.target.value);
+  const prev = $('#import-preview');
+  if (!e.target.value.trim()) {
+    prev.classList.add('escondido');
+    return;
+  }
+  prev.classList.remove('escondido');
+  if (perguntas.length === 0) {
+    prev.innerHTML = '<span class="bad">⚠️ Nenhuma pergunta válida detectada ainda. Verifique o formato.</span>';
+    return;
+  }
+  prev.innerHTML = `<strong>✅ ${perguntas.length} pergunta${perguntas.length === 1 ? '' : 's'} detectada${perguntas.length === 1 ? '' : 's'}:</strong><br><br>` +
+    perguntas.slice(0, 5).map((q, i) =>
+      `${i + 1}. ${escapeHtml(q.p)}<br><small style="color:var(--sucesso)">✓ ${escapeHtml(q.a[q.c])}</small>`
+    ).join('<br>') +
+    (perguntas.length > 5 ? `<br><em>... e mais ${perguntas.length - 5}</em>` : '');
+});
+
+$('#btn-confirmar-import-texto').addEventListener('click', () => {
+  const texto = $('#import-texto').value;
+  const novas = parseTextoPerguntas(texto);
+
+  if (novas.length === 0) {
+    return toast('Nenhuma pergunta válida encontrada', 'erro');
+  }
+
+  const atuais = carregarPerguntas();
+  const juntas = [...atuais, ...novas];
+  salvarPerguntas(juntas);
+  fecharModalImportTexto();
+  renderizarListaPerguntas();
+  atualizarInfoPerguntas();
+  toast(`✅ ${novas.length} perguntas importadas!`, 'sucesso');
+});
+
+// ======================================================
 //  TELA DE CONFIGURAÇÕES
 // ======================================================
 function abrirConfig() {
@@ -608,7 +912,6 @@ function atualizarSlidersConfig() {
   $('#lbl-vol-sfx').textContent = vs;
 }
 
-// Sliders de jogo
 $('#sl-tempo').addEventListener('input', (e) => {
   CONFIG.TEMPO_POR_BOMBA = parseFloat(e.target.value);
   $('#lbl-tempo').textContent = CONFIG.TEMPO_POR_BOMBA;
@@ -625,7 +928,6 @@ $('#sl-bonus').addEventListener('input', (e) => {
   salvarConfig();
 });
 
-// Sliders de volume
 $('#sl-vol-musica').addEventListener('input', (e) => {
   const v = parseFloat(e.target.value);
   $('#lbl-vol-musica').textContent = v;
@@ -641,7 +943,6 @@ $('#sl-vol-sfx').addEventListener('input', (e) => {
   if (Audio.ctx) Audio.resume();
 });
 
-// Restaurar padrão
 $('#btn-config-padrao').addEventListener('click', () => {
   if (!confirm('Restaurar todas as configurações para o padrão?')) return;
   Object.assign(CONFIG, CONFIG_PADRAO);
@@ -676,6 +977,9 @@ $('#btn-audio').addEventListener('click', () => {
   atualizarInfoPerguntas();
   atualizarSlidersConfig();
 
+  // Estado inicial do checkbox "alternar"
+  $('#check-alternar').checked = CONFIG.ALTERNAR_TURNOS !== false;
+
   const iniciarAudio = () => {
     Audio.init();
     Audio.resume();
@@ -685,6 +989,16 @@ $('#btn-audio').addEventListener('click', () => {
   };
   document.addEventListener('pointerdown', iniciarAudio);
   document.addEventListener('keydown', iniciarAudio);
+
+  // Atalho: barra de espaço pausa/retoma durante o jogo
+  document.addEventListener('keydown', (e) => {
+    if (!$('#tela-jogo').classList.contains('ativa')) return;
+    if (e.code === 'Space' && !e.repeat) {
+      e.preventDefault();
+      if (estado.pausado) continuarJogo();
+      else pausarJogo();
+    }
+  });
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
