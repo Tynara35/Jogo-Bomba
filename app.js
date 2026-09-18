@@ -7,7 +7,7 @@ const CONFIG_PADRAO = {
   TEMPO_POR_BOMBA: 30,
   PONTOS_ACERTO: 10,
   BONUS_MAX: 5,
-  ALTERNAR_TURNOS: true,
+  MODO_TURNO: 'alternar',   // 'alternar' | 'manter' | 'blocos'
 };
 
 const CONFIG = { ...CONFIG_PADRAO };
@@ -91,7 +91,9 @@ function atualizarInfoPerguntas() {
 const estado = {
   modo: null,
   mortesubita: false,
-  alternar: true,
+  modoTurno: 'alternar',
+  perguntasPorEquipe: 5,
+  perguntasRespondidas: [],
   equipes: [],
   equipeAtual: 0,
   fila: [],
@@ -102,7 +104,7 @@ const estado = {
   respondido: false,
   ultimoTick: -1,
   pausado: false,
-  configuracoesIniciais: null, // para "reiniciar"
+  configuracoesIniciais: null,
 };
 
 // ======================================================
@@ -118,6 +120,7 @@ document.addEventListener('click', (e) => {
       mostrarTela('tela-config-solo');
     } else {
       montarFormularioEquipes();
+      atualizarAjudasEquipe();
       mostrarTela('tela-config-equipes');
     }
   }
@@ -140,7 +143,6 @@ function montarFormularioEquipes() {
   const num = parseInt($('#select-num-equipes').value, 10);
   const container = $('#lista-nomes-equipes');
 
-  // Salva estado atual
   const atuais = [...container.querySelectorAll('.equipe-linha')].map(l => ({
     nome: l.querySelector('.input-nome-equipe').value,
     cor: l.querySelector('.input-cor-equipe').value,
@@ -163,8 +165,53 @@ function montarFormularioEquipes() {
     `;
     container.appendChild(linha);
   }
+  atualizarAjudasEquipe();
 }
+
+// ---------- Textos de ajuda dinâmicos ----------
+function atualizarAjudasEquipe() {
+  const nEquipes = parseInt($('#select-num-equipes').value, 10);
+  const porEquipe = parseInt($('#select-bombas-equipe').value, 10);
+  const modoTurno = $('#select-modo-turno').value;
+
+  // Ajuda do "bombas por equipe"
+  $('#ajuda-bombas').textContent =
+    `Total: ${nEquipes * porEquipe} bombas (${nEquipes} equipes × ${porEquipe})`;
+
+  // Ajuda do modo de turno
+  const ajuda = $('#ajuda-turno');
+
+  if (modoTurno === 'alternar') {
+    ajuda.textContent = 'Cada equipe responde uma pergunta por vez, revezando.';
+  } else if (modoTurno === 'manter') {
+    ajuda.textContent = 'A mesma equipe continua respondendo até errar. Ao errar, passa para a próxima.';
+  } else {
+    // blocos — monta preview com nomes
+    const inputs = [...$('#lista-nomes-equipes').querySelectorAll('.input-nome-equipe')];
+    const nomes = inputs.map((i, idx) => i.value.trim() || `Equipe ${idx + 1}`);
+
+    const partes = nomes.map((nome, i) => {
+      const inicio = i * porEquipe + 1;
+      const fim = inicio + porEquipe - 1;
+      return `<strong>${escapeHtml(nome)}</strong>: ${inicio}–${fim}`;
+    });
+    ajuda.innerHTML = `📋 Distribuição: ${partes.join(' • ')}`;
+  }
+}
+
 $('#select-num-equipes').addEventListener('change', montarFormularioEquipes);
+$('#select-bombas-equipe').addEventListener('change', atualizarAjudasEquipe);
+$('#select-modo-turno').addEventListener('change', () => {
+  atualizarAjudasEquipe();
+  CONFIG.MODO_TURNO = $('#select-modo-turno').value;
+  salvarConfig();
+});
+// Atualiza a ajuda de blocos quando o usuário digita um nome
+document.addEventListener('input', (e) => {
+  if (e.target.classList.contains('input-nome-equipe')) {
+    if ($('#select-modo-turno').value === 'blocos') atualizarAjudasEquipe();
+  }
+});
 
 // ======================================================
 //  INICIAR JOGO
@@ -178,7 +225,8 @@ $('#btn-iniciar-solo').addEventListener('click', () => {
     [{ nome, pontos: 0, eliminada: false, cor: CORES_PADRAO[0] }],
     qtd,
     mortesubita,
-    false
+    'alternar',
+    0
   );
 });
 
@@ -191,7 +239,6 @@ $('#btn-iniciar-equipes').addEventListener('click', () => {
     eliminada: false,
   }));
 
-  // Verifica nomes duplicados
   const nomes = equipes.map(e => e.nome.toLowerCase());
   if (new Set(nomes).size !== nomes.length) {
     toast('Cada equipe precisa de um nome único!', 'erro');
@@ -200,12 +247,16 @@ $('#btn-iniciar-equipes').addEventListener('click', () => {
 
   const porEquipe = parseInt($('#select-bombas-equipe').value, 10);
   const mortesubita = $('#check-morte-equipes').checked;
-  const alternar = $('#check-alternar').checked;
+  const modoTurno = $('#select-modo-turno').value;
 
-  iniciarJogo('equipes', equipes, porEquipe * equipes.length, mortesubita, alternar);
+  // Salva preferência
+  CONFIG.MODO_TURNO = modoTurno;
+  salvarConfig();
+
+  iniciarJogo('equipes', equipes, porEquipe * equipes.length, mortesubita, modoTurno, porEquipe);
 });
 
-function iniciarJogo(modo, equipes, totalBombas, mortesubita, alternar) {
+function iniciarJogo(modo, equipes, totalBombas, mortesubita, modoTurno, perguntasPorEquipe) {
   const banco = carregarPerguntas();
   if (banco.length < 4) {
     toast('Adicione pelo menos 4 perguntas no editor!', 'erro');
@@ -214,7 +265,8 @@ function iniciarJogo(modo, equipes, totalBombas, mortesubita, alternar) {
 
   estado.modo = modo;
   estado.mortesubita = mortesubita;
-  estado.alternar = alternar;
+  estado.modoTurno = modoTurno || 'alternar';
+  estado.perguntasPorEquipe = perguntasPorEquipe || 0;
   estado.equipes = equipes;
   estado.equipeAtual = 0;
   estado.bombaAtual = 0;
@@ -222,14 +274,15 @@ function iniciarJogo(modo, equipes, totalBombas, mortesubita, alternar) {
   estado.fila = embaralhar(banco).slice(0, estado.totalBombas);
   estado.respondido = false;
   estado.pausado = false;
+  estado.perguntasRespondidas = equipes.map(() => 0);
 
-  // Guarda config para "reiniciar"
   estado.configuracoesIniciais = {
     modo,
     equipes: equipes.map(e => ({ ...e, pontos: 0, eliminada: false })),
     totalBombas: estado.totalBombas,
     mortesubita,
-    alternar,
+    modoTurno: estado.modoTurno,
+    perguntasPorEquipe: estado.perguntasPorEquipe,
   };
 
   if (modo === 'equipes') {
@@ -248,7 +301,7 @@ function iniciarJogo(modo, equipes, totalBombas, mortesubita, alternar) {
 }
 
 // ======================================================
-//  COR DA EQUIPE (aplica em todo o app)
+//  COR DA EQUIPE
 // ======================================================
 function atualizarCorEquipe() {
   const eq = estado.equipes[estado.equipeAtual];
@@ -279,27 +332,22 @@ function proximaBomba() {
   estado.ultimoTick = -1;
   const pergunta = estado.fila[estado.bombaAtual];
 
-  // HUD
   $('#hud-bomba').textContent = `${estado.bombaAtual + 1} / ${estado.totalBombas}`;
   const eqAtual = estado.equipes[estado.equipeAtual];
   $('#hud-equipe').textContent = eqAtual.nome;
   $('#hud-pontos').textContent = eqAtual.pontos;
 
-  // Banner de vez
   if (estado.modo === 'equipes') {
     $('#turno-nome').textContent = eqAtual.nome;
   }
 
-  // Aplica cor
   atualizarCorEquipe();
-  $('#hud').classList.add('tem-cor');
+  $('.hud').classList.add('tem-cor');         // ← CORRIGIDO (era #hud)
   $('#bomba').classList.add('tem-cor');
   $('#pergunta').classList.add('tem-cor');
 
-  // Pergunta
   $('#pergunta').textContent = pergunta.p;
 
-  // Alternativas embaralhadas
   const indices = embaralhar(pergunta.a.map((_, i) => i));
   const alt = $('#alternativas');
   alt.innerHTML = '';
@@ -364,7 +412,6 @@ function responder(botao) {
   let acertou = false;
 
   if (botao === null) {
-    // Timeout
     Audio.explosao();
     $('#bomba').classList.add('explodir');
     toast('💥 Tempo esgotado!', 'timeout');
@@ -372,17 +419,15 @@ function responder(botao) {
       if (b.dataset.correta === '1') b.classList.add('correta');
     });
   } else if (botao.dataset.correta === '1') {
-    // ACERTOU — bomba explode como recompensa
     acertou = true;
     const bonus = Math.round((estado.tempoRestante / CONFIG.TEMPO_POR_BOMBA) * CONFIG.BONUS_MAX);
     Audio.acerto();
     setTimeout(() => Audio.explosao(), 150);
     botao.classList.add('correta');
-    $('#bomba').classList.add('explodir'); // 💥 explode ao acertar
+    $('#bomba').classList.add('explodir');
     estado.equipes[estado.equipeAtual].pontos += CONFIG.PONTOS_ACERTO + bonus;
     toast(`💥 +${CONFIG.PONTOS_ACERTO + bonus} pontos!`, 'sucesso');
   } else {
-    // ERROU
     Audio.erro();
     botao.classList.add('errada');
     alternativas.forEach(b => {
@@ -398,10 +443,11 @@ function responder(botao) {
 }
 
 // ======================================================
-//  AVANÇAR TURNO / MORTE SÚBITA
+//  AVANÇAR TURNO — 3 MODOS
 // ======================================================
 function avancarTurno(acertou) {
   estado.bombaAtual++;
+  estado.perguntasRespondidas[estado.equipeAtual]++;
 
   // ---- Solo ----
   if (estado.modo === 'solo') {
@@ -410,7 +456,7 @@ function avancarTurno(acertou) {
     return proximaBomba();
   }
 
-  // ---- Equipes ----
+  // ---- Equipes: morte súbita ----
   if (estado.mortesubita && !acertou) {
     estado.equipes[estado.equipeAtual].eliminada = true;
   }
@@ -419,21 +465,27 @@ function avancarTurno(acertou) {
   if (estado.mortesubita && vivas.length <= 1) return finalizarJogo();
   if (estado.bombaAtual >= estado.totalBombas) return finalizarJogo();
 
-  // Decide se troca de equipe
-  let trocar = true;
-  if (!estado.alternar) {
-    // Só troca se errou
+  // ---- Decide se troca de equipe ----
+  const equipeAtualEliminada = estado.equipes[estado.equipeAtual].eliminada;
+
+  let trocar = false;
+
+  if (equipeAtualEliminada) {
+    // Se a equipe foi eliminada, sempre passa
+    trocar = true;
+  } else if (estado.modoTurno === 'alternar') {
+    // Modo 1: alterna a cada pergunta
+    trocar = true;
+  } else if (estado.modoTurno === 'manter') {
+    // Modo 2: só troca se errar
     trocar = !acertou;
+  } else if (estado.modoTurno === 'blocos') {
+    // Modo 3: troca quando bateu a cota de perguntas seguidas
+    trocar = estado.perguntasRespondidas[estado.equipeAtual] >= estado.perguntasPorEquipe;
   }
 
   if (trocar) {
     estado.equipeAtual = proximaEquipeViva(estado.equipeAtual);
-  } else {
-    // Mesma equipe continua — mas se ela foi eliminada (não é possível com morte súbita
-    // porque errar = eliminada = troca obrigatória), garante que continua viva
-    if (estado.equipes[estado.equipeAtual].eliminada) {
-      estado.equipeAtual = proximaEquipeViva(estado.equipeAtual);
-    }
   }
 
   proximaBomba();
@@ -457,7 +509,7 @@ function finalizarJogo() {
   estado.pausado = false;
   Audio.vitoria();
 
-  $('#hud').classList.remove('tem-cor');
+  $('.hud').classList.remove('tem-cor');       // ← CORRIGIDO
   $('#bomba').classList.remove('tem-cor');
   $('#pergunta').classList.remove('tem-cor');
 
@@ -526,7 +578,6 @@ function finalizarJogo() {
 function pausarJogo() {
   if (estado.pausado || estado.respondido) return;
   estado.pausado = true;
-
   $('#pausa-tempo').textContent = Math.ceil(estado.tempoRestante) + 's';
   $('#pausa-equipe').textContent = estado.equipes[estado.equipeAtual]?.nome || '—';
   $('#overlay-pausa').classList.remove('escondido');
@@ -545,7 +596,7 @@ $('#btn-menu-da-pausa').addEventListener('click', () => {
   estado.pausado = false;
   clearInterval(estado.timerId);
   $('#overlay-pausa').classList.add('escondido');
-  $('#hud').classList.remove('tem-cor');
+  $('.hud').classList.remove('tem-cor');       // ← CORRIGIDO
   $('#bomba').classList.remove('tem-cor');
   $('#pergunta').classList.remove('tem-cor');
   atualizarInfoPerguntas();
@@ -553,7 +604,7 @@ $('#btn-menu-da-pausa').addEventListener('click', () => {
 });
 
 // ======================================================
-//  REINICIAR DURANTE O JOGO
+//  REINICIAR
 // ======================================================
 function reiniciarJogoAtual() {
   if (!estado.configuracoesIniciais) return;
@@ -566,7 +617,8 @@ function reiniciarJogoAtual() {
     cfg.equipes.map(e => ({ ...e, pontos: 0, eliminada: false })),
     cfg.totalBombas,
     cfg.mortesubita,
-    cfg.alternar
+    cfg.modoTurno,
+    cfg.perguntasPorEquipe
   );
   toast('🔄 Jogo reiniciado!', 'info');
 }
@@ -977,8 +1029,8 @@ $('#btn-audio').addEventListener('click', () => {
   atualizarInfoPerguntas();
   atualizarSlidersConfig();
 
-  // Estado inicial do checkbox "alternar"
-  $('#check-alternar').checked = CONFIG.ALTERNAR_TURNOS !== false;
+  // Estado inicial do select de turno
+  $('#select-modo-turno').value = CONFIG.MODO_TURNO || 'alternar';
 
   const iniciarAudio = () => {
     Audio.init();
@@ -990,7 +1042,7 @@ $('#btn-audio').addEventListener('click', () => {
   document.addEventListener('pointerdown', iniciarAudio);
   document.addEventListener('keydown', iniciarAudio);
 
-  // Atalho: barra de espaço pausa/retoma durante o jogo
+  // Espaço pausa/retoma
   document.addEventListener('keydown', (e) => {
     if (!$('#tela-jogo').classList.contains('ativa')) return;
     if (e.code === 'Space' && !e.repeat) {
