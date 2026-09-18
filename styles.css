@@ -12,13 +12,13 @@
   --aviso: #facc15;
   --radius: 16px;
   --sombra: 0 10px 30px rgba(0,0,0,.35);
-  --cor-equipe: #ff6b35; /* muda dinamicamente */
+  --cor-equipe: #ff6b35;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  min-height: 100%;
+  height: 100%;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: radial-gradient(circle at 50% 0%, #1c1c34 0%, var(--bg) 60%);
   color: var(--texto);
@@ -27,7 +27,8 @@ html, body {
 
 body {
   min-height: 100vh;
-  padding: 20px env(safe-area-inset-right) 20px env(safe-area-inset-left);
+  min-height: 100dvh;
+  padding: 12px env(safe-area-inset-right) 12px env(safe-area-inset-left);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -39,9 +40,17 @@ body {
   max-width: 640px;
   animation: fadeIn .35s ease;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 .tela.ativa { display: flex; }
+
+/* ---------- TELA DE JOGO: ocupa a tela inteira e não deixa vazar ---------- */
+#tela-jogo.ativa {
+  height: calc(100vh - 24px);
+  height: calc(100dvh - 24px);
+  overflow: hidden;
+  gap: 8px;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -126,7 +135,7 @@ body {
   margin-top: -6px;
 }
 
-/* ---------- Linha de equipe (nome + cor) ---------- */
+/* ---------- Linha de equipe ---------- */
 .equipe-linha {
   display: flex;
   gap: 10px;
@@ -137,8 +146,7 @@ body {
   border: 1px solid #2a2a44;
 }
 .equipe-linha .numero {
-  width: 28px;
-  height: 28px;
+  width: 28px; height: 28px;
   border-radius: 50%;
   background: var(--secundaria);
   display: flex;
@@ -162,8 +170,7 @@ body {
 }
 .equipe-linha .input-nome-equipe:focus { border-color: var(--primaria); }
 .equipe-linha .input-cor-equipe {
-  width: 48px;
-  height: 40px;
+  width: 48px; height: 40px;
   border: 2px solid #2a2a44;
   border-radius: 10px;
   background: transparent;
@@ -214,40 +221,43 @@ h3 { font-size: 20px; margin-bottom: 14px; }
 }
 .switch input:checked + .switch-ui { background: var(--erro); }
 .switch input:checked + .switch-ui::after { transform: translateX(20px); }
-/* Switch específico do "alternar" (usa cor diferente quando ligado) */
-#check-alternar:checked + .switch-ui { background: var(--primaria); }
 .switch-txt { display: flex; flex-direction: column; gap: 2px; }
 .switch-txt small { color: var(--texto-suave); font-size: 12px; }
 
-/* ---------- HUD ---------- */
+/* ====================================================== */
+/*                       JOGO                             */
+/* ====================================================== */
+
+/* ---------- HUD (compacta) ---------- */
 .hud {
   display: flex;
   gap: 8px;
   background: var(--bg-card);
-  padding: 12px 16px;
+  padding: 8px 12px;
   border-radius: var(--radius);
   justify-content: space-between;
   align-items: center;
   border: 2px solid transparent;
   transition: border-color .3s, box-shadow .3s;
+  flex-shrink: 0;
 }
 .hud.tem-cor {
   border-color: var(--cor-equipe);
   box-shadow: 0 0 20px color-mix(in srgb, var(--cor-equipe) 35%, transparent);
 }
 .hud-item { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
-.hud-label { font-size: 10px; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 1px; }
-.hud-valor { font-size: 15px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.hud-label { font-size: 9px; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 1px; }
+.hud-valor { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
 .hud-equipe .hud-valor { color: var(--cor-equipe); }
 
 .hud-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .hud-btn {
-  width: 38px; height: 38px;
+  width: 34px; height: 34px;
   border-radius: 10px;
   border: 2px solid var(--secundaria);
   background: var(--bg-card-2);
   color: var(--texto);
-  font-size: 16px;
+  font-size: 15px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -258,29 +268,29 @@ h3 { font-size: 20px; margin-bottom: 14px; }
 .hud-btn:hover { border-color: var(--primaria); background: #2f2f4d; }
 .hud-btn:active { transform: scale(.92); }
 
-/* ---------- Banner de vez ---------- */
+/* ---------- Banner de vez (compacto) ---------- */
 .turno-banner {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 14px 18px;
-  border-radius: var(--radius);
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--cor-equipe) 20%, var(--bg-card));
   border: 2px solid var(--cor-equipe);
-  font-size: 17px;
+  font-size: 14px;
   text-align: center;
   animation: aparecerBanner .4s ease;
+  flex-shrink: 0;
 }
 .turno-banner strong {
   color: var(--cor-equipe);
-  font-size: 20px;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 .turno-pulso {
-  width: 12px;
-  height: 12px;
+  width: 10px; height: 10px;
   border-radius: 50%;
   background: var(--cor-equipe);
   animation: pulsarDot 1.4s infinite;
@@ -295,49 +305,61 @@ h3 { font-size: 20px; margin-bottom: 14px; }
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* ---------- Placar ---------- */
-.placar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+/* ---------- Placar (compacto, sem scale) ---------- */
+.placar { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; flex-shrink: 0; }
+.placar::-webkit-scrollbar { height: 4px; }
+.placar::-webkit-scrollbar-thumb { background: var(--secundaria); border-radius: 4px; }
 .placar-item {
   background: var(--bg-card);
-  padding: 8px 14px;
-  border-radius: 12px;
-  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
   white-space: nowrap;
   border: 2px solid transparent;
   transition: all .2s;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  flex-shrink: 0;
 }
 .placar-item .dot {
-  width: 10px; height: 10px;
+  width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .placar-item.ativo {
   background: var(--bg-card-2);
   border-color: var(--cor-item, var(--primaria));
-  box-shadow: 0 0 12px color-mix(in srgb, var(--cor-item, var(--primaria)) 40%, transparent);
-  transform: scale(1.05);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--cor-item, var(--primaria)) 45%, transparent);
+  /* SEM transform — era o que deixava desalinhado */
 }
 .placar-item.eliminada { opacity: .4; text-decoration: line-through; border-color: var(--erro); }
 .placar-item .pts { font-weight: 800; color: var(--aviso); margin-left: 4px; }
 
 .escondido { display: none !important; }
 
-/* ---------- Bomba ---------- */
-.area-bomba { text-align: center; padding: 8px 0; }
+/* ---------- Bomba (compacta) ---------- */
+.area-bomba {
+  text-align: center;
+  padding: 2px 0;
+  flex-shrink: 0;
+}
 .bomba {
   position: relative;
   display: inline-block;
-  padding: 10px;
+  padding: 4px;
   border-radius: 50%;
   transition: box-shadow .3s;
 }
 .bomba.tem-cor {
-  box-shadow: 0 0 60px 10px color-mix(in srgb, var(--cor-equipe) 50%, transparent);
+  box-shadow: 0 0 40px 6px color-mix(in srgb, var(--cor-equipe) 50%, transparent);
 }
-.bomba-emoji-grande { font-size: 90px; display: inline-block; animation: pulsar 1.1s infinite; }
+.bomba-emoji-grande {
+  font-size: 62px;
+  display: inline-block;
+  animation: pulsar 1.1s infinite;
+  line-height: 1;
+}
 .bomba.perigo .bomba-emoji-grande { animation: tremer .35s infinite; }
 .bomba.explodir .bomba-emoji-grande { animation: explodir .9s forwards; }
 
@@ -359,44 +381,74 @@ h3 { font-size: 20px; margin-bottom: 14px; }
   100% { transform: scale(0); opacity: 0; filter: brightness(6); }
 }
 
-.timer { width: 100%; height: 10px; background: #2a2a44; border-radius: 10px; overflow: hidden; margin-top: 12px; }
-.timer-barra { height: 100%; width: 100%; background: linear-gradient(90deg, var(--sucesso), var(--aviso), var(--erro)); transition: width .1s linear; }
-.timer-texto { margin-top: 6px; font-weight: 800; font-size: 20px; color: var(--aviso); }
+.timer {
+  width: 100%;
+  height: 7px;
+  background: #2a2a44;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.timer-barra {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, var(--sucesso), var(--aviso), var(--erro));
+  transition: width .1s linear;
+}
+.timer-texto {
+  margin-top: 4px;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--aviso);
+}
 
-/* ---------- Pergunta ---------- */
-.pergunta-box { display: flex; flex-direction: column; gap: 14px; }
+/* ---------- Pergunta e alternativas (compactas) ---------- */
+.pergunta-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.pergunta-box::-webkit-scrollbar { width: 4px; }
+.pergunta-box::-webkit-scrollbar-thumb { background: var(--secundaria); border-radius: 4px; }
+
 .pergunta {
   background: var(--bg-card);
-  padding: 18px;
-  border-radius: var(--radius);
-  font-size: 17px;
-  line-height: 1.5;
+  padding: 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  line-height: 1.4;
   text-align: center;
   box-shadow: var(--sombra);
   border: 2px solid transparent;
   transition: border-color .3s, background .3s;
+  flex-shrink: 0;
 }
 .pergunta.tem-cor {
   border-color: var(--cor-equipe);
   background: color-mix(in srgb, var(--cor-equipe) 8%, var(--bg-card));
 }
-.alternativas { display: flex; flex-direction: column; gap: 10px; }
+.alternativas { display: flex; flex-direction: column; gap: 8px; }
 .alternativa {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border-radius: 12px;
   border: 2px solid #2a2a44;
   background: var(--bg-card);
   color: var(--texto);
-  font-size: 15px;
+  font-size: 14px;
   text-align: left;
   cursor: pointer;
   transition: all .15s;
   font-weight: 500;
   font-family: inherit;
+  flex-shrink: 0;
 }
 .alternativa:hover:not(:disabled) {
   border-color: var(--cor-equipe, var(--primaria));
-  transform: translateX(4px);
+  transform: translateX(3px);
 }
 .alternativa:disabled { cursor: default; }
 .alternativa.correta { background: rgba(34,197,94,.18); border-color: var(--sucesso); }
@@ -674,15 +726,31 @@ h3 { font-size: 20px; margin-bottom: 14px; }
 .toast.timeout { background: var(--aviso); color: #222; }
 .toast.info { background: var(--primaria); }
 
-@media (min-width: 600px) {
-  .botoes-modo { flex-direction: row; flex-wrap: wrap; }
-  .botoes-modo .btn { flex: 1 1 calc(50% - 6px); }
-}
-/* ---------- Texto de ajuda dos campos ---------- */
+/* ---------- Ajuda dos campos ---------- */
 .ajuda-campo {
   display: block;
   font-size: 12px;
   color: var(--texto-suave);
   margin-top: 4px;
   line-height: 1.4;
+}
+
+/* ---------- Responsivo ---------- */
+@media (min-width: 600px) {
+  .botoes-modo { flex-direction: row; flex-wrap: wrap; }
+  .botoes-modo .btn { flex: 1 1 calc(50% - 6px); }
+}
+
+/* Em telas BAIXAS (celular deitado, telas pequenas), comprime mais */
+@media (max-height: 700px) {
+  .bomba-emoji-grande { font-size: 48px; }
+  .pergunta { padding: 10px 12px; font-size: 14px; }
+  .alternativa { padding: 10px 12px; font-size: 13px; }
+  .turno-banner { padding: 6px 12px; font-size: 13px; }
+  .turno-banner strong { font-size: 14px; }
+  .hud { padding: 6px 10px; }
+  .hud-btn { width: 30px; height: 30px; font-size: 13px; }
+  .timer-texto { font-size: 13px; }
+  .timer { height: 6px; }
+  #tela-jogo.ativa { gap: 6px; }
 }
