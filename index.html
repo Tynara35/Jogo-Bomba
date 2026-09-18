@@ -73,7 +73,10 @@
         <option value="4">4 equipes</option>
       </select>
     </label>
+
+    <p class="dica-config">💡 Escolha o nome e a cor de cada equipe.</p>
     <div id="lista-nomes-equipes" class="lista-equipes"></div>
+
     <label class="campo">
       <span>Bombas por equipe</span>
       <select id="select-bombas-equipe">
@@ -82,6 +85,16 @@
         <option value="7">7 bombas</option>
       </select>
     </label>
+
+    <label class="switch">
+      <input type="checkbox" id="check-alternar" checked />
+      <span class="switch-ui"></span>
+      <span class="switch-txt">
+        <strong>🔀 Alternar turnos</strong>
+        <small>Desligue para a mesma equipe continuar até errar</small>
+      </span>
+    </label>
+
     <label class="switch">
       <input type="checkbox" id="check-morte-equipes" />
       <span class="switch-ui"></span>
@@ -90,6 +103,7 @@
         <small>Equipe que errar é eliminada. Última de pé vence.</small>
       </span>
     </label>
+
     <div class="acoes">
       <button class="btn btn-secundario" data-voltar>Voltar</button>
       <button class="btn btn-primario" id="btn-iniciar-equipes">Começar 💣</button>
@@ -111,7 +125,18 @@
         <span class="hud-label">Pontos</span>
         <span id="hud-pontos" class="hud-valor">0</span>
       </div>
+      <div class="hud-actions">
+        <button id="btn-pausar" class="hud-btn" title="Pausar">⏸</button>
+        <button id="btn-reiniciar-jogo" class="hud-btn" title="Reiniciar">🔄</button>
+      </div>
     </header>
+
+    <!-- Banner de vez -->
+    <div id="turno-banner" class="turno-banner escondido">
+      <span class="turno-pulso"></span>
+      <span>É a vez da</span>
+      <strong id="turno-nome">Equipe</strong>
+    </div>
 
     <div id="placar" class="placar escondido"></div>
 
@@ -145,6 +170,7 @@
 
     <div class="editor-toolbar">
       <button class="btn btn-primario btn-sm" id="btn-nova-pergunta">+ Nova</button>
+      <button class="btn btn-fantasma btn-sm" id="btn-colar-word">📋 Colar do Word</button>
       <button class="btn btn-fantasma btn-sm" id="btn-exportar">⬇ Exportar</button>
       <button class="btn btn-fantasma btn-sm" id="btn-importar">⬆ Importar</button>
       <button class="btn btn-perigo btn-sm" id="btn-restaurar">↺ Padrão</button>
@@ -152,7 +178,6 @@
     </div>
 
     <p class="editor-info" id="editor-info">0 perguntas salvas</p>
-
     <div id="lista-perguntas" class="lista-perguntas"></div>
 
     <div class="acoes">
@@ -245,6 +270,39 @@
         <button class="btn btn-secundario" id="btn-cancelar-edit">Cancelar</button>
         <button class="btn btn-primario" id="btn-salvar-pergunta">Salvar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL COLAR DO WORD ================= -->
+  <div id="modal-import-texto" class="modal escondido">
+    <div class="modal-box">
+      <h3>📋 Colar do Word</h3>
+      <p class="dica-edit">
+        Cole o texto das perguntas abaixo. Aceita blocos de texto (com <code>a) b) c) d)</code> e <code>Resposta:</code>) ou tabelas coladas direto do Word.
+      </p>
+      <label class="campo">
+        <span>Cole o texto aqui</span>
+        <textarea id="import-texto" rows="12" placeholder="Cole aqui as perguntas..."></textarea>
+      </label>
+      <div id="import-preview" class="import-preview escondido"></div>
+      <div class="acoes">
+        <button class="btn btn-secundario" id="btn-cancelar-import-texto">Cancelar</button>
+        <button class="btn btn-primario" id="btn-confirmar-import-texto">Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= OVERLAY DE PAUSA ================= -->
+  <div id="overlay-pausa" class="overlay escondido">
+    <div class="overlay-box">
+      <h2>⏸ Jogo pausado</h2>
+      <p class="overlay-info">Tempo restante: <strong id="pausa-tempo">30s</strong></p>
+      <p class="overlay-info">Vez de: <strong id="pausa-equipe">—</strong></p>
+      <div class="acoes">
+        <button class="btn btn-secundario" id="btn-menu-da-pausa">🏠 Menu</button>
+        <button class="btn btn-primario" id="btn-continuar">▶ Continuar</button>
+      </div>
+      <button class="btn btn-perigo" id="btn-reiniciar-da-pausa">🔄 Reiniciar jogo</button>
     </div>
   </div>
 
