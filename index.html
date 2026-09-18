@@ -65,6 +65,7 @@
   <!-- ================= CONFIG EQUIPES ================= -->
   <section id="tela-config-equipes" class="tela">
     <h2>👥 Modo Equipes</h2>
+
     <label class="campo">
       <span>Número de equipes</span>
       <select id="select-num-equipes">
@@ -83,16 +84,19 @@
         <option value="3">3 bombas</option>
         <option value="5" selected>5 bombas</option>
         <option value="7">7 bombas</option>
+        <option value="10">10 bombas</option>
       </select>
+      <small class="ajuda-campo" id="ajuda-bombas">Total: 10 bombas (2 equipes × 5)</small>
     </label>
 
-    <label class="switch">
-      <input type="checkbox" id="check-alternar" checked />
-      <span class="switch-ui"></span>
-      <span class="switch-txt">
-        <strong>🔀 Alternar turnos</strong>
-        <small>Desligue para a mesma equipe continuar até errar</small>
-      </span>
+    <label class="campo">
+      <span>🔄 Como girar os turnos</span>
+      <select id="select-modo-turno">
+        <option value="alternar" selected>Alternar a cada pergunta</option>
+        <option value="manter">Mesma equipe continua até errar</option>
+        <option value="blocos">Blocos sequenciais (cada equipe responde várias seguidas)</option>
+      </select>
+      <small class="ajuda-campo" id="ajuda-turno">Cada equipe responde uma pergunta por vez, revezando.</small>
     </label>
 
     <label class="switch">
@@ -131,7 +135,6 @@
       </div>
     </header>
 
-    <!-- Banner de vez -->
     <div id="turno-banner" class="turno-banner escondido">
       <span class="turno-pulso"></span>
       <span>É a vez da</span>
